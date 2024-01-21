@@ -17,9 +17,8 @@ OnInit.module("TaskObservable", function(require)
     end
 
     --- Shorthand for creating an TaskObserver and passing it to this TaskObservable's subscription function.
-    ---@generic T
-    ---@param onNext table|fun(value: T, delay: number) called when the TaskObservable produces a value.
-    ---@param onError fun(message: string, delay: number)? called when the TaskObservable terminates due to an error.
+    ---@param onNext table|fun(delay: number, ...: unknown) called when the TaskObservable produces a value.
+    ---@param onError fun(delay: number, message: string)? called when the TaskObservable terminates due to an error.
     ---@param onCompleted fun(delay: number)? called when the TaskObservable completes normally.
     function TaskObservable:subscribe(onNext, onError, onCompleted)
         if type(onNext) == 'table' then

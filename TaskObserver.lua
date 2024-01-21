@@ -3,15 +3,14 @@ OnInit.module("TaskObserver", function(require)
     require "ReactiveX"
 
     ---@class TaskObserver : Observer
-    ---@field _onNext fun(value: unknown, delay: number)?
-    ---@field _onError fun(message: string, delay: number)?
+    ---@field _onNext fun(delay: number, ...: unknown)?
+    ---@field _onError fun(delay: number, message: string)?
     ---@field _onCompleted fun(delay: number)?
     TaskObserver = {}
     TaskObserver.__index = TaskObserver
     setmetatable(TaskObserver, Observer)
 
-    ---@generic T
-    ---@param onNext fun(value: T, delay: number)
+    ---@param onNext fun(delay: number, ...: unknown)
     ---@param onError fun(message: string, delay: number)?
     ---@param onCompleted fun()?
     ---@return TaskObserver
@@ -20,22 +19,21 @@ OnInit.module("TaskObserver", function(require)
     end
 
     --- Pushes a value to the Observer.
-    ---@generic T
-    ---@param value T
     ---@param delay number
-    function TaskObserver:onNext(value, delay)
+    ---@param ... unknown
+    function TaskObserver:onNext(delay, ...)
         if not self.stopped then
-            self._onNext(value, delay)
+            self._onNext(delay, ...)
         end
     end
 
     --- Notify the Observer that an error has occurred.
-    ---@param message string A string describing what went wrong.
     ---@param delay number
-    function TaskObserver:onError(message, delay)
+    ---@param message string A string describing what went wrong.
+    function TaskObserver:onError(delay, message)
         if not self.stopped then
             self.stopped = true
-            self._onError(message, delay)
+            self._onError(delay, message)
         end
     end
 

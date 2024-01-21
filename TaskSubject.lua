@@ -19,19 +19,18 @@ OnInit.module("TaskSubject", function(require)
     end
 
     --- Creates a new Observer and attaches it to the TaskSubject.
-    ---@generic T
-    ---@param onNext fun(value: T, delay: number) - A function called when the TaskSubject produces a value or an existing Observer to attach to the TaskSubject.
-    ---@param onError fun(message: string, delay: number) - Called when the TaskSubject terminates due to an error.
+    ---@param onNext fun(delay: number, ...: unknown) - A function called when the TaskSubject produces a value or an existing Observer to attach to the TaskSubject.
+    ---@param onError fun(delay: number, message: string) - Called when the TaskSubject terminates due to an error.
     ---@param onCompleted fun(delay: number) - Called when the TaskSubject completes normally.
     ---@return Subscription?
     function TaskSubject:subscribe(onNext, onError, onCompleted)
         local observer = TaskObserver.create(onNext, onError, onCompleted) --[[@as TaskObserver]]
         if self.value then
-            observer:onNext(self.value, self.delay)
+            observer:onNext(self.delay, table.unpack(self.value))
             observer:onCompleted(self.delay)
             return
         elseif self.errorMessage then
-            observer:onError(self.errorMessage, self.delay)
+            observer:onError(self.delay, self.errorMessage)
             return
         end
 
@@ -48,47 +47,52 @@ OnInit.module("TaskSubject", function(require)
     end
 
     --- Pushes a value to the TaskSubject.
-    ---@generic T
-    ---@param value T
     ---@param delay number
-    function TaskSubject:onNext(value, delay)
+    ---@param ... unknown
+    function TaskSubject:onNext(delay, ...)
         if not self.stopped then
-            self.value = value
             self.delay = delay
+            self.value = table.pack(...) -- terrible practice...
 
             for i = 1, #self.observers do
-                self.observers[i]:onNext(value, delay)
+                self.observers[i]:onNext(delay, ...)
             end
         end
     end
 
     --- Signal to all Observers that an error has occurred.
-    ---@param message string - A string describing what went wrong.
     ---@param delay number
-    function TaskSubject:onError(message, delay)
+    ---@param message string - A string describing what went wrong.
+    function TaskSubject:onError(delay, message)
         if not self.stopped then
             self.errorMessage = message
 
             for i = 1, #self.observers do
-                self.observers[i]:onError(self.errorMessage, delay)
+                self.observers[i]:onError(delay, self.errorMessage)
             end
 
             self.stopped = true
         end
     end
 
+    ---@param self TaskSubject
+    ---@param delay number
+    ---@param ... unknown
+    local function completeAll(self, delay, ...)
+        for i = 1, #self.observers do
+            if self.value then
+                self.observers[i]:onNext(self.delay, ...)
+            end
+
+            self.observers[i]:onCompleted(delay)
+        end
+    end 
+
     --- Signal to all Observers that the TaskSubject will not produce any more values.
     ---@param delay number
     function TaskSubject:onCompleted(delay)
         if not self.stopped then
-            for i = 1, #self.observers do
-                if self.value then
-                    self.observers[i]:onNext(self.value, self.delay)
-                end
-
-                self.observers[i]:onCompleted(delay)
-            end
-
+            completeAll(self, delay, table.unpack(self.value))
             self.stopped = true
         end
     end

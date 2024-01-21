@@ -141,6 +141,23 @@ OnInit.module("TaskProcessor", function(require)
         task:remove()
     end
 
+    ---@param task Task
+    ---@param delay number
+    ---@param status boolean
+    ---@param ... unknown
+    ---@return unknown?
+    local function propagateResults(task, delay, status, ...)
+        if status == true then
+            task.promise:onNext(delay, ...)
+        else
+            task.promise:onError(delay, ...)
+            task.promise:onCompleted(delay)
+            return
+        end
+
+        return select(1, ...)
+    end
+
     ---@param processor Processor
     ---@param bucket TaskBucket
     ---@param currentTime number
@@ -151,15 +168,7 @@ OnInit.module("TaskProcessor", function(require)
             while taskNode ~= bucket.tasks.head do
                 local task = taskNode --[[@as LinkedListNode]].value ---@type Task
                 local delay = (currentTime - task.requestTime) * GAME_TICK_INVERSE
-                local status, result = pcall(task.fn, delay)
-
-                if status == true then
-                    task.promise:onNext(result, delay)
-                else
-                    task.promise:onError(result, delay)
-                    task.promise:onCompleted(delay)
-                    return
-                end
+                local result = propagateResults(task, delay, pcall(task.fn, delay))
 
                 processor.currentOperations = processor.currentOperations + task.opCount
 
