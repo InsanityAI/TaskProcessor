@@ -1,8 +1,6 @@
 if Debug then Debug.beginFile "TaskProcessor" end
 OnInit.module("TaskProcessor", function(require)
     require "TimerQueue"
-    require "TaskSubject"
-    require "DoublyLinkedList"
 
     local WC3_OP_LIMIT = 1666666 -- JASS's max OP limit, used as reference to how many operations would lua be able to do without in-game lags. Very experimental and not yet confirmed.
     -- How many operations can all processors in total use up in comparison to WC3_OP_LIMIT constant.
@@ -28,70 +26,6 @@ OnInit.module("TaskProcessor", function(require)
         end
     end
 
-    ---@class Task
-    ---@field fn fun(delay: number): any
-    ---@field opCount integer
-    ---@field promise TaskSubject
-    ---@field requestTime number
-    Task = {}
-    Task.__index = Task
-
-    ---@param fn fun(delay: number)
-    ---@param opCount integer
-    ---@param currentTime number
-    ---@return Task
-    local function createTask(fn, opCount, currentTime)
-        return setmetatable({
-            fn = fn,
-            opCount = opCount,
-            requestTime = currentTime
-        }, Task)
-    end
-
-    ---@class PeriodicTask : Task
-    ---@field period number
-    ---@field fn fun(delay: number): boolean done
-    PeriodicTask = setmetatable({}, Task)
-    PeriodicTask.__index = PeriodicTask
-
-    ---@param task Task
-    ---@param period number
-    ---@return PeriodicTask
-    local function createPeriodicTask(task, period)
-        task--[[@as PeriodicTask]].period = period
-        return setmetatable(task, PeriodicTask) --[[@as PeriodicTask]]
-    end
-
-    ---@class CompositeTask: Task
-    ---@field fn fun(delay: number): unknown?
-    ---@field composite true
-    CompositeTask = setmetatable({}, Task)
-    CompositeTask.__index = CompositeTask
-
-    ---@return CompositeTask
-    function CompositeTask:clone()
-        return setmetatable({
-            fn = self.fn,
-            opCount = self.opCount,
-            requestTime = self.requestTime,
-            promise = self.promise,
-            composite = true,
-        }, CompositeTask) --[[@as CompositeTask]]
-    end
-
-    local function compositeTask(fn, opCount, currentTime)
-        return setmetatable({
-            fn = fn,
-            opCount = opCount,
-            requestTime = currentTime,
-            composite = true
-        }, CompositeTask)
-    end
-
-    ---@class TaskBucket
-    ---@field tasks LinkedListHead
-    ---@field opCount integer
-
     ---@param processor Processor
     ---@param task Task
     local function enqueueToAvailableTaskBucket(processor, task)
@@ -99,14 +33,10 @@ OnInit.module("TaskProcessor", function(require)
             processor.taskExecutor:resume()
         end
         local chosenBucket ---@type TaskBucket
+        local taskOpCount = task:getOpCount()
         if processor.taskBuckets then
-            for index, bucket in ipairs(processor.taskBuckets) do
-                if index == processor.currentBucketIndex then
-                    if task --[[@as CompositeTask]].composite and processor.currentOperations + task.opCount <= processor.opLimit then
-                        chosenBucket = bucket
-                        break
-                    end
-                elseif bucket.opCount + task.opCount <= processor.opLimit then
+            for _, bucket in ipairs(processor.taskBuckets) do
+                if bucket.opCount + taskOpCount <= processor.opLimit then
                     chosenBucket = bucket
                     break
                 end
@@ -116,10 +46,10 @@ OnInit.module("TaskProcessor", function(require)
         if chosenBucket == nil then
             chosenBucket = LinkedList.create()
             chosenBucket:insert(task, true)
-            table.insert(processor.taskBuckets, { tasks = chosenBucket, opCount = task.opCount } --[[@as TaskBucket]])
+            table.insert(processor.taskBuckets, { tasks = chosenBucket, opCount = taskOpCount })
         else
             chosenBucket.tasks:insert(task, true)
-            chosenBucket.opCount = chosenBucket.opCount + task.opCount
+            chosenBucket.opCount = chosenBucket.opCount + taskOpCount
         end
     end
 
@@ -135,27 +65,21 @@ OnInit.module("TaskProcessor", function(require)
     Processor.__index = Processor
 
     ---@param bucket TaskBucket
-    ---@param task LinkedListNode
+    ---@param task TaskList
     local function dequeueTask(bucket, task)
-        bucket.opCount = bucket.opCount - task.value --[[@as Task]].opCount
+        bucket.opCount = bucket.opCount - task.value:getOpCount()
         task:remove()
     end
 
-    ---@param task Task
-    ---@param delay number
-    ---@param status boolean
-    ---@param ... unknown
-    ---@return unknown?
-    local function propagateResults(task, delay, status, ...)
-        if status == true then
-            task.promise:onNext(delay, ...)
-        else
-            task.promise:onError(delay, ...)
-            task.promise:onCompleted(delay)
-            return
-        end
 
-        return select(1, ...)
+    ---@param coroutineSuccess boolean|string
+    ---@param taskResult string|boolean?
+    local function isTaskToBeRepeated(coroutineSuccess, taskResult)
+        if coroutineSuccess == false then
+            return false
+        else
+            return taskResult == true
+        end
     end
 
     ---@param processor Processor
@@ -163,30 +87,18 @@ OnInit.module("TaskProcessor", function(require)
     ---@param currentTime number
     local function processTasks(processor, bucket, currentTime)
         if bucket.tasks.n > 0 then
-            local taskNode = bucket.tasks.next
-            local previousNode = bucket.tasks
-            while taskNode ~= bucket.tasks.head do
+            for taskNode in bucket.tasks:loop() do
                 local task = taskNode --[[@as LinkedListNode]].value ---@type Task
                 local delay = (currentTime - task.requestTime) * GAME_TICK_INVERSE
-                local result = propagateResults(task, delay, pcall(task.fn, delay))
+                local coroutineSuccess, taskResult = task:propagateResults(delay, coroutine.resume(task.taskThread, delay, table.unpack(task, 1, task.n)))
+                processor.currentOperations = processor.currentOperations + task:getOpCount()
 
-                processor.currentOperations = processor.currentOperations + task.opCount
-
-                if task --[[@as PeriodicTask]].period and result == false then
+                if task.type == TaskType.REPEATING and isTaskToBeRepeated(coroutineSuccess, taskResult) then
                     task.requestTime = currentTime
-                elseif task --[[@as CompositeTask]].composite and result then
-                    local currentTask = taskNode
-                    taskNode, previousNode = previousNode, previousNode.prev
-                    dequeueTask(bucket, currentTask)
-                    enqueueToAvailableTaskBucket(processor, task --[[@as CompositeTask ]]:clone())
                 else
-                    local currentTask = taskNode
-                    taskNode, previousNode = previousNode, previousNode.prev
-                    dequeueTask(bucket, currentTask)
-                    task.promise:onCompleted(delay)
+                    dequeueTask(bucket, taskNode)
+                    task:finish(delay)
                 end
-                previousNode = taskNode
-                taskNode = taskNode.next
             end
         end
     end
@@ -216,31 +128,6 @@ OnInit.module("TaskProcessor", function(require)
         end
     end
 
-    ---@param fn fun(delay: number):any or boolean if period is defined
-    ---@param fnOpCount integer
-    ---@param period number?
-    ---@param composite boolean?
-    ---@return TaskObservable
-    function Processor:enqueueTask(fn, fnOpCount, period, composite)
-        assert(type(fn) == "function", "Parameter 'fn' must be a function.")
-        assert(type(fnOpCount) == "number" and math.floor(fnOpCount) == fnOpCount,
-            "Parameter 'fnOpCount' must be an integer.")
-        local task
-        if composite then
-            task = compositeTask(fn, fnOpCount, self.clock:getElapsed())
-        else
-            task = createTask(fn, fnOpCount, self.clock:getElapsed())
-        end
-        if period then
-            assert(type(period) == 'number' and period > 0, "Parameter 'period' must be a number and higher than 0.")
-            task = createPeriodicTask(task, period)
-        end
-        task.promise = TaskSubject.create()
-        enqueueToAvailableTaskBucket(self, task)
-
-        return task.promise --[[@as TaskObservable]]
-    end
-
     ---@param ratio integer integer higher or equal to 1, will re-adjust this new processor and other existing processors op limit in comparison to these numbers.
     ---@return Processor
     function Processor.create(ratio)
@@ -260,6 +147,131 @@ OnInit.module("TaskProcessor", function(require)
         instance.taskExecutor:pause();
         instance.taskExecutor:callPeriodically(GAME_TICK, nil, process, instance)
         return instance
+    end
+
+    ---@alias TaskCallable thread|(fun(delay: integer, ...: unknown): repeat: boolean, ...)|{__call: fun(delay: integer, ...: unknown): repeat: boolean, ...}
+
+    ---@param opCounts integer|integer[]
+    local function validateCommonArgs(opCounts)
+        local opCountsType = type(opCounts)
+        if opCountsType == "table" then
+            local count = 0
+            for _, value in ipairs(opCounts) do
+                assert(type(value) == "number", "opCount must be a number!")
+                assert(value > 0, "opCount cannot be 0 or less!")
+                count = count + 1
+            end
+            if not count then
+                error("opCount must be a number or an array of numbers")
+            end
+        elseif opCountsType == "number" then
+            assert(opCounts > 0, "opCount cannot be 0 or less!")
+        else
+            error("opCounts must either be a number or an array of numbers!")
+        end
+    end
+
+    ---@param taskCallable TaskCallable
+    ---@return "table"|"function"|"thread"
+    local function getCallableType(taskCallable)
+        local callableType = type(taskCallable)
+        if callableType == 'table' then
+            if taskCallable.__call then
+                return "table"
+            else
+                error("Argument callable of table type does not contain __call metamethod!")
+            end
+        elseif callableType == 'function' then
+            return "function"
+        elseif callableType == 'thread' then
+            return "thread"
+        else
+            error("Cannot call a non-callable object of type " .. callableType .. "!")
+        end
+    end
+
+    ---@param table {__call: fun(delay: number, ...: unknown): ...: unknown}
+    ---@return ...
+    local function callCallableTable(delay, table, ...)
+        return table(delay, ...)
+    end
+
+    ---@overload fun(self: Processor, taskCallable: TaskCallable, opCounts: number|number[], api: TaskAPI.REACTIVE,       ...: unknown): TaskObservable
+    ---@overload fun(self: Processor, taskCallable: TaskCallable, opCounts: number|number[], api: TaskAPI.EVENT_LISTENER, ...: unknown): EventListener
+    function Processor:enqueue(callable, opCounts, api, ...)
+        validateCommonArgs(opCounts)
+        local callableType = getCallableType(callable)
+        local thread ---@type thread
+        if callableType == 'table' then
+            thread = coroutine.create(callCallableTable)
+        elseif callableType == 'function' then
+            thread = coroutine.create(callable)
+        elseif callableType == 'thread' then
+            thread = callable --[[@as thread]]
+        end
+
+        local task ---@type Task
+        if api == TaskAPI.REACTIVE then
+            if callableType == 'table' then
+                task = ReactiveTask.create(thread, opCounts, self.clock:getElapsed(), TaskType.ONESHOT, nil, callable, ...)
+            else
+                task = ReactiveTask.create(thread, opCounts, self.clock:getElapsed(), TaskType.ONESHOT, nil, ...)
+            end
+        elseif api == TaskAPI.EVENT_LISTENER then
+            if callableType == 'table' then
+                task = EventListenerTask.create(thread, opCounts, self.clock:getElapsed(), TaskType.ONESHOT, nil, callable, ...)
+            else
+                task = EventListenerTask.create(thread, opCounts, self.clock:getElapsed(), TaskType.ONESHOT, nil, ...)
+            end
+        end
+
+        enqueueToAvailableTaskBucket(self, task)
+
+        if api == TaskAPI.REACTIVE then
+            return task.observable
+        elseif api == TaskAPI.EVENT_LISTENER then
+            return task.eventListener
+        end
+    end
+
+    ---@overload fun(self: Processor, taskCallable: TaskCallable, period: number, opCounts: number|number[], api: TaskAPI.REACTIVE, ...: unknown): TaskObservable
+    ---@overload fun(self: Processor, taskCallable: TaskCallable, period: number, opCounts: number|number[], api: TaskAPI.EVENT_LISTENER, ...: unknown): EventListener
+    function Processor:enqueuePeriodic(callable, period, opCounts, api, ...)
+        validateCommonArgs(opCounts)
+        assert(type(period) == "number", "Argument period must be a positive non-zero number!")
+        assert(period > 0, "Argument period must be a positive non-zero number!")
+        local callableType = getCallableType(callable)
+        local thread ---@type thread
+        if callableType == 'table' then
+            thread = coroutine.create(callCallableTable)
+        elseif callableType == 'function' then
+            thread = coroutine.create(callable)
+        elseif callableType == 'thread' then
+            thread = callable --[[@as thread]]
+        end
+
+        local task ---@type Task
+        if api == TaskAPI.REACTIVE then
+            if callableType == 'table' then
+                task = ReactiveTask.create(thread, opCounts, self.clock:getElapsed(), TaskType.REPEATING, period, callable, ...)
+            else
+                task = ReactiveTask.create(thread, opCounts, self.clock:getElapsed(), TaskType.REPEATING, period, ...)
+            end
+        elseif api == TaskAPI.EVENT_LISTENER then
+            if callableType == 'table' then
+                task = EventListenerTask.create(thread, opCounts, self.clock:getElapsed(), TaskType.REPEATING, period, callable, ...)
+            else
+                task = EventListenerTask.create(thread, opCounts, self.clock:getElapsed(), TaskType.REPEATING, period, ...)
+            end
+        end
+
+        enqueueToAvailableTaskBucket(self, task)
+
+        if api == TaskAPI.REACTIVE then
+            return task.observable
+        elseif api == TaskAPI.EVENT_LISTENER then
+            return task.eventListener
+        end
     end
 end)
 if Debug then Debug.endFile() end

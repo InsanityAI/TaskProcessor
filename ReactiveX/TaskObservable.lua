@@ -3,17 +3,21 @@ OnInit.module("TaskObservable", function(require)
     require "ReactiveX"
 
     ---@class TaskObservable : Observable
-    ---@field _subscribe fun(observer: TaskObserver): any?
+    ---@field task ReactiveTask
+    ---@field _subscribe fun(observer: TaskObserver, task: ReactiveTask): TaskSubscription
     -- Observables push values to Observers.
     TaskObservable = {}
     TaskObservable.__index = TaskObservable
     setmetatable({}, Observable)
 
-    --- Creates a new TaskObservable.
-    ---@param subscribe fun(observer: TaskObserver): any? subscription function that produces values.
+    -- Creates a new TaskObservable.
+    ---@param task ReactiveTask
+    ---@param subscribe fun(observer: TaskObserver, task: ReactiveTask): TaskSubscription subscription function that produces values.
     ---@return TaskObservable
-    function TaskObservable.create(subscribe)
-        return setmetatable(Observable.create(subscribe), TaskObservable) --[[@as TaskObservable]]
+    function TaskObservable.create(task, subscribe)
+        local o = setmetatable(Observable.create(subscribe), TaskObservable) --[[@as TaskObservable]]
+        o.task = task
+        return o
     end
 
     --- Shorthand for creating an TaskObserver and passing it to this TaskObservable's subscription function.
@@ -22,9 +26,9 @@ OnInit.module("TaskObservable", function(require)
     ---@param onCompleted fun(delay: number)? called when the TaskObservable completes normally.
     function TaskObservable:subscribe(onNext, onError, onCompleted)
         if type(onNext) == 'table' then
-            return self._subscribe(onNext)
+            return self._subscribe(onNext, self.task)
         else
-            return self._subscribe(TaskObserver.create(onNext, onError, onCompleted))
+            return self._subscribe(TaskObserver.create(onNext, onError, onCompleted), self.task)
         end
     end
 end)

@@ -86,7 +86,7 @@ OnInit.module("TaskSubject", function(require)
 
             self.observers[i]:onCompleted(delay)
         end
-    end 
+    end
 
     --- Signal to all Observers that the TaskSubject will not produce any more values.
     ---@param delay number
