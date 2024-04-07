@@ -26,13 +26,12 @@ OnInit.module("TaskProcessor.ReactiveX.Task", function(require)
 
     ---@param taskThread thread
     ---@param opCounts integer|integer[]
-    ---@param requestTime number
     ---@param taskType TaskType
     ---@param period number?
     ---@param ... unknown
     ---@return ReactiveTask
-    function ReactiveTask.create(taskThread, opCounts, requestTime, taskType, period, ...)
-        local o = setmetatable(Task.create(taskThread, opCounts, requestTime, taskType, period, ...), ReactiveTask) --[[@as ReactiveTask]]
+    function ReactiveTask.create(taskThread, opCounts, taskType, period, ...)
+        local o = setmetatable(Task.create(taskThread, opCounts, taskType, period, ...), ReactiveTask) --[[@as ReactiveTask]]
         o.observable = TaskObservable.create(o, subscribeObserver)
         o.observers = SyncedTable.create()
         return o

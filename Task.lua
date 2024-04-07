@@ -1,6 +1,5 @@
 if Debug then Debug.beginFile "TaskProcessor.Task" end
-OnInit.module("TaskProcessor.Task", function (require)
-
+OnInit.module("TaskProcessor.Task", function(require)
     ---@enum TaskAPI
     TaskAPI = {
         REGULAR = 1,
@@ -32,30 +31,34 @@ OnInit.module("TaskProcessor.Task", function (require)
 
     ---@param taskThread thread
     ---@param opCounts integer|{n: integer, index: integer, [integer]: integer}
-    ---@param requestTime number
     ---@param taskType TaskType
     ---@param period number?
     ---@param ... unknown
     ---@return Task
-    function Task.create(taskThread, opCounts, requestTime, taskType, period, ...)
+    function Task.create(taskThread, opCounts, taskType, period, ...)
         local o = table.pack(...)
         o.taskThread = taskThread
         o.opCounts = opCounts
-        o.requestTime = requestTime
         o.taskType = taskType
         o.period = period
 
         if type(o.opCounts) == "table" then
             o.opCounts.n = #opCounts
-            o.opCounts.index = 0
+            o.opCounts.index = 1
         end
 
         return setmetatable(o, Task)
     end
 
+    -- Fetches task's current opCount
+    -- Used for scheduling
+    function Task:peekOpCount()
+        return self.opCounts[self.opCounts.index]
+    end
+
     local opCount ---@type integer
-    ---@return integer
-    function Task:getOpCount()
+    -- Increment opCount stage (if there's multiple), returns the next opCount
+    function Task:nextOpCount()
         opCount = self.opCounts[self.opCounts.index]
         if self.opCounts.index < self.opCounts.n then
             self.opCounts.index = self.opCounts.index + 1
@@ -65,11 +68,5 @@ OnInit.module("TaskProcessor.Task", function (require)
 
     ---@class TaskList: LinkedListHead
     ---@field value Task
-
-    ---@class TaskBucket
-    ---@field tasks TaskList
-    ---@field opCount integer
-
-    ---@alias CallableTable {__call: fun(delay: integer, ...: unknown)}
 end)
 if Debug then Debug.endFile() end

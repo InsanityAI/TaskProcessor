@@ -6,22 +6,26 @@ OnInit.module("TaskProcessor/EventListener/Task", function(require)
     end
     require "TaskProcessor.Task"
 
+    ---@class TaskListener: EventListener
+    ---@field run fun(self: TaskListener, delay: number, ...: unknown)
+    ---@field register fun(self: TaskListener, func: fun(delay: number, ...: unknown)): boolean 
+    ---@field unregister fun(self: TaskListener, func: fun(delay: number, ...: unknown))
+
     ---@class EventListenerTask: Task
-    ---@field eventListener EventListener
+    ---@field eventListener TaskListener
     EventListenerTask = {}
     EventListenerTask.__index = EventListenerTask
     setmetatable(EventListenerTask, Task)
 
     ---@param taskThread thread
     ---@param opCounts integer|integer[]
-    ---@param requestTime number
     ---@param taskType TaskType
     ---@param period number?
     ---@param ... unknown
     ---@return EventListenerTask
-    function EventListenerTask.create(taskThread, opCounts, requestTime, taskType, period, ...)
-        local o = setmetatable(Task.create(taskThread, opCounts, requestTime, taskType, period, ...), EventListenerTask) --[[@as EventListenerTask]]
-        o.eventListener = EventListener.create()
+    function EventListenerTask.create(taskThread, opCounts, taskType, period, ...)
+        local o = setmetatable(Task.create(taskThread, opCounts, taskType, period, ...), EventListenerTask) --[[@as EventListenerTask]]
+        o.eventListener = EventListener.create() --[[@as TaskListener]]
         return o
     end
 
