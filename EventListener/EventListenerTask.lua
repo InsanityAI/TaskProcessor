@@ -1,10 +1,10 @@
-if Debug then Debug.beginFile "TaskProcessor/EventListener/Task" end
-OnInit.module("TaskProcessor/EventListener/Task", function(require)
+if Debug then Debug.beginFile "TaskProcessor/EventListener/EventListenerTask" end
+OnInit.module("TaskProcessor/EventListener/EventListenerTask", function(require)
     local EL = require.optionally "EventListener" ---@type EventListener
     if not EL then
         return
     end
-    require "TaskProcessor.Task"
+    require "TaskProcessor/Task"
 
     ---@class TaskListener: EventListener
     ---@field run fun(self: TaskListener, delay: number, ...: unknown)
@@ -15,16 +15,17 @@ OnInit.module("TaskProcessor/EventListener/Task", function(require)
     ---@field eventListener TaskListener
     EventListenerTask = {}
     EventListenerTask.__index = EventListenerTask
+    EventListenerTask.__name = "EventListenerTask"
     setmetatable(EventListenerTask, Task)
 
-    ---@param taskThread thread
+    ---@param callable thread|function
     ---@param opCounts integer|integer[]
     ---@param taskType TaskType
     ---@param period number?
     ---@param ... unknown
     ---@return EventListenerTask
-    function EventListenerTask.create(taskThread, opCounts, taskType, period, ...)
-        local o = setmetatable(Task.create(taskThread, opCounts, taskType, period, ...), EventListenerTask) --[[@as EventListenerTask]]
+    function EventListenerTask.create(callable, opCounts, taskType, period, ...)
+        local o = setmetatable(Task.create(callable, opCounts, taskType, period, ...), EventListenerTask) --[[@as EventListenerTask]]
         o.eventListener = EventListener.create() --[[@as TaskListener]]
         return o
     end

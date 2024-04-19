@@ -10,7 +10,7 @@ OnInit.module("TaskProcessor/Strategies/ShortestJobFirst", function(require)
         return ShortestJobFirst
     end
 
-    ---@param processor Processor
+    ---@param processor TaskProcessor
     ---@param task Task
     function ShortestJobFirst:scheduleTask(processor, task)
         local taskOpCount = task:peekOpCount()

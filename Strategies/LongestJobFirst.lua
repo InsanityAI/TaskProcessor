@@ -3,6 +3,7 @@ OnInit.module("TaskProcessor/Strategies/LongestJobFirst", function(require)
     ---@class LongestJobFirst: SchedulingStrategy
     local LongestJobFirst = {}
     LongestJobFirst.__index = LongestJobFirst
+    LongestJobFirst.__name = "LongestJobFirst"
 
     -- Singleton
     ---@return LongestJobFirst
@@ -10,7 +11,7 @@ OnInit.module("TaskProcessor/Strategies/LongestJobFirst", function(require)
         return LongestJobFirst
     end
 
-    ---@param processor Processor
+    ---@param processor TaskProcessor
     ---@param task Task
     function LongestJobFirst:scheduleTask(processor, task)
         local taskOpCount = task:peekOpCount()

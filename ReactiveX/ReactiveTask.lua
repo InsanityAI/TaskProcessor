@@ -1,6 +1,6 @@
-if Debug then Debug.beginFile "TaskProcessor.ReactiveX.Task" end
-OnInit.module("TaskProcessor.ReactiveX.Task", function(require)
-    require "TaskProcessor.Task"
+if Debug then Debug.beginFile "TaskProcessor/ReactiveX/ReactiveTask" end
+OnInit.module("TaskProcessor/ReactiveX/ReactiveTask", function(require)
+    require "TaskProcessor/Task"
     require "SyncedTable"
 
     ---@class ReactiveTask: Task
@@ -8,6 +8,7 @@ OnInit.module("TaskProcessor.ReactiveX.Task", function(require)
     ---@field observable TaskObservable
     ReactiveTask = {}
     ReactiveTask.__index = ReactiveTask
+    ReactiveTask.__name = "ReactiveTask"
     setmetatable(ReactiveTask, Task)
 
     ---@param subscription TaskSubscription
@@ -24,14 +25,14 @@ OnInit.module("TaskProcessor.ReactiveX.Task", function(require)
         return subscription
     end
 
-    ---@param taskThread thread
+    ---@param callable thread|function
     ---@param opCounts integer|integer[]
     ---@param taskType TaskType
     ---@param period number?
     ---@param ... unknown
     ---@return ReactiveTask
-    function ReactiveTask.create(taskThread, opCounts, taskType, period, ...)
-        local o = setmetatable(Task.create(taskThread, opCounts, taskType, period, ...), ReactiveTask) --[[@as ReactiveTask]]
+    function ReactiveTask.create(callable, opCounts, taskType, period, ...)
+        local o = setmetatable(Task.create(callable, opCounts, taskType, period, ...), ReactiveTask) --[[@as ReactiveTask]]
         o.observable = TaskObservable.create(o, subscribeObserver)
         o.observers = SyncedTable.create()
         return o

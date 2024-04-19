@@ -1,13 +1,14 @@
-if Debug then Debug.beginFile "TaskSubject" end
-OnInit.module("TaskSubject", function(require)
+if Debug then Debug.beginFile "TaskProcessor/ReactiveX/TaskSubject" end
+OnInit.module("TaskProcessor/ReactiveX/TaskSubject", function(require)
     require "ReactiveX"
-    require "TaskObservable"
-    require "TaskObserver"
+    require "TaskProcessor/ReactiveX/TaskObservable"
+    require "TaskProcessor/ReactiveX/TaskObserver"
 
     ---@class TaskSubject : BehaviorSubject
     ---@field observers TaskObserver[]
     TaskSubject = {}
     TaskSubject.__index = TaskSubject
+    TaskSubject.__name = "TaskSubject"
     setmetatable(TaskSubject, BehaviorSubject)
 
     ---@return TaskSubject

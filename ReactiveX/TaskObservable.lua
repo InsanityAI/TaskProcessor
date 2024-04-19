@@ -1,5 +1,5 @@
-if Debug then Debug.beginFile "TaskObservable" end
-OnInit.module("TaskObservable", function(require)
+if Debug then Debug.beginFile "TaskProcessor/ReactiveX/TaskObservable" end
+OnInit.module("TaskProcessor/ReactiveX/TaskObservable", function(require)
     require "ReactiveX"
 
     ---@class TaskObservable : Observable
@@ -8,6 +8,7 @@ OnInit.module("TaskObservable", function(require)
     -- Observables push values to Observers.
     TaskObservable = {}
     TaskObservable.__index = TaskObservable
+    TaskObservable.__name = "TaskObservable"
     setmetatable({}, Observable)
 
     -- Creates a new TaskObservable.

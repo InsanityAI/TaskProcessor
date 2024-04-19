@@ -5,6 +5,7 @@ OnInit.module("TaskProcessor/ReactiveX/TaskSubscription", function(require)
     ---@field task ReactiveTask
     TaskSubscription = {}
     TaskSubscription.__index = TaskSubscription
+    TaskSubscription.__name = "TaskSubscription"
     setmetatable(TaskSubscription, Subscription)
 
     -- Creates a new Subscription.

@@ -3,6 +3,7 @@ OnInit.module("TaskProcessor/Strategies/FirstComeFirstServe", function(require)
     ---@class FirstComeFirstServe: SchedulingStrategy
     local FirstComeFirstServe = {}
     FirstComeFirstServe.__index = FirstComeFirstServe
+    FirstComeFirstServe.__name = "FirstComeFirstServe"
 
     -- Singleton
     ---@return FirstComeFirstServe
@@ -10,7 +11,7 @@ OnInit.module("TaskProcessor/Strategies/FirstComeFirstServe", function(require)
         return FirstComeFirstServe
     end
 
-    ---@param processor Processor
+    ---@param processor TaskProcessor
     ---@param task Task
     function FirstComeFirstServe:scheduleTask(processor, task)
         processor.tasks:getPrev():insert(task, true)

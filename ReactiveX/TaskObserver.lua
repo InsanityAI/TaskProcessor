@@ -1,5 +1,5 @@
-if Debug then Debug.beginFile "TaskObserver" end
-OnInit.module("TaskObserver", function(require)
+if Debug then Debug.beginFile "TaskProcessor/ReactiveX/TaskObserver" end
+OnInit.module("TaskProcessor/ReactiveX/TaskObserver", function(require)
     require "ReactiveX"
 
     ---@class TaskObserver : Observer
@@ -8,6 +8,7 @@ OnInit.module("TaskObserver", function(require)
     ---@field _onCompleted fun(delay: number)?
     TaskObserver = {}
     TaskObserver.__index = TaskObserver
+    TaskObserver.__name = "TaskObserver"
     setmetatable(TaskObserver, Observer)
 
     ---@param onNext fun(delay: number, ...: unknown)
