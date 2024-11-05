@@ -1,7 +1,7 @@
 if Debug then Debug.beginFile "TaskProcessor" end
 OnInit.module("TaskProcessor", function(require)
     require "TimerQueue"
-    require "DoublyLinkedList"
+    require "LinkedList"
     require "TaskProcessor/EventListener/EventListenerTask"
     require "TaskProcessor/ReactiveX/ReactiveTask"
     require "TaskProcessor/ReactiveX/TaskObservable"
